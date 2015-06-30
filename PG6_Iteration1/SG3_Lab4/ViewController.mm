@@ -37,6 +37,17 @@
 #define LAUGH @"LAUGH"
 #define SPEED @"SPEED"
 
+#define FASTER @"FASTER"
+#define SLOWER @"SLOWER"
+#define STOPSIGN @"STOPSIGN"
+#define GOSIGN @"GOSIGN"
+#define LEFTSIGN @"LEFTSIGN"
+#define RIGHTSIGN @"RIGHTSIGN"
+#define SLOWSIGN @"SLOWSIGN"
+#define DNESIGN @"DNESIGN"
+#define TWEET @"TWEET"
+#define OFF @"OFF"
+#define ON @"ON"
 
 #define FORMAT(format, ...) [NSString stringWithFormat:(format), ##__VA_ARGS__]
 
@@ -59,6 +70,7 @@ NSString *go;
 NSString *turnLeft;
 NSString *turnRight;
 NSString *slowDown;
+NSString *activeSign;
 NSMutableArray *signs;
 int signIdx;
 
@@ -105,8 +117,6 @@ BOOL isRunning;
 
 @property (nonatomic, strong) NSArray *tokens;
 
-
-
 @end
 
 @implementation ViewController
@@ -115,6 +125,16 @@ BOOL isRunning;
 - (void)viewDidLoad {
     [self logInfo:@"Entering viewDidLoad"];
     [super viewDidLoad];
+    
+    // To receive messages when Robots connect & disconnect, set RMCore's delegate to self
+    [RMCore setDelegate:self];
+    
+    // Grab a shared instance of the Romo character
+    self.Romo = [RMCharacter Romo];
+    
+    [RMCore setDelegate:self];
+    
+    [self addGestureRecognizers];
     
     [self setupCamera];
     [self turnCameraOn];
@@ -130,16 +150,6 @@ BOOL isRunning;
     
     [self tappedOnRed:self];
     
-    // To receive messages when Robots connect & disconnect, set RMCore's delegate to self
-    [RMCore setDelegate:self];
-    
-    // Grab a shared instance of the Romo character
-    //self.Romo = [RMCharacter Romo];
-
-    //[RMCore setDelegate:se6lf];
-    
-    [self addGestureRecognizers];
-    
     signIdx = 0;
     
     stop = [[NSBundle mainBundle] pathForResource:@"stop" ofType:@"bmp"];
@@ -148,6 +158,7 @@ BOOL isRunning;
     turnLeft = [[NSBundle mainBundle] pathForResource:@"traffic-sign-turn-left" ofType:@"bmp"];
     turnRight = [[NSBundle mainBundle] pathForResource:@"traffic-sign-turn-right" ofType:@"bmp"];
     slowDown = [[NSBundle mainBundle] pathForResource:@"traffic-sign-slow-down" ofType:@"bmp"];
+    activeSign = go;
     
     signs = [[NSMutableArray alloc] init];
     [signs addObject:stop];
@@ -173,7 +184,6 @@ BOOL isRunning;
     }
     
     isRunning = YES;
-
     
     //self.Romo.emotion = RMCharacterEmotionCurious;
     //self.Romo.expression = RMCharacterExpressionSneeze;
@@ -401,16 +411,18 @@ BOOL isRunning;
     dateString = [formatter stringFromDate:[NSDate date]];
     
     //Concatenates outputMSG string and the current time
-    NSString *outputMSG = @"I made it to the top at ";
+   NSString *outputMSG = @"Greetings from Romo at ";
     NSString *outputDate = [outputMSG stringByAppendingString:dateString];
     
     AFHTTPRequestOperationManager *manager = [AFHTTPRequestOperationManager manager];
+    manager.responseSerializer.acceptableContentTypes = [NSSet setWithObject:@"text/html"];
     NSString *sentence = [outputDate stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
     
     NSString *url = [NSString stringWithFormat:@"%s/chunks/%@", BASE_URL, sentence];
     
     NSLog(@"%@", url);
     
+    /*
     [manager GET:url parameters:nil success:^(AFHTTPRequestOperation *operation, id responseObject) {
         NSLog(@"JSON: %@", responseObject);
         
@@ -427,6 +439,10 @@ BOOL isRunning;
                                               otherButtonTitles:nil, nil];
         [alert show];
     }];
+     */
+    
+    _tokens = [outputDate componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+    [self tweetCommands];
     
 }
 
@@ -505,28 +521,28 @@ BOOL isRunning;
         // Romo will drive Forward
         self.Romo.emotion = RMCharacterEmotionExcited;
         self.Romo.expression = RMCharacterExpressionExcited;
-        [self.Romo3 driveForwardWithSpeed:1.0];
+        [self.Romo3 driveForwardWithSpeed:0.5];
     }
     else if([msg caseInsensitiveCompare:BACK] == NSOrderedSame)
     {
         // Romo will drive Backwards
         self.Romo.emotion = RMCharacterEmotionScared;
         self.Romo.expression = RMCharacterExpressionScared;
-        [self.Romo3 driveBackwardWithSpeed:1.0];
+        [self.Romo3 driveBackwardWithSpeed:0.5];
     }
     else if([msg caseInsensitiveCompare:LEFT] == NSOrderedSame)
     {
         // Romo will drive Left
         self.Romo.emotion = RMCharacterEmotionDelighted;
         self.Romo.expression = RMCharacterExpressionDizzy;
-        [self.Romo3 driveWithRadius:1.0 speed:1.0];
+        [self.Romo3 driveWithRadius:-1.0 speed:0.5];
     }
     else if ([msg caseInsensitiveCompare:RIGHT] == NSOrderedSame)
     {
         // Romo will drive Right
         self.Romo.emotion = RMCharacterEmotionDelighted;
         self.Romo.expression = RMCharacterExpressionDizzy;
-        [self.Romo3 driveWithRadius:-1.0 speed:1.0];
+        [self.Romo3 driveWithRadius:1.0 speed:0.5];
     }
     else if ([msg caseInsensitiveCompare:STOP] == NSOrderedSame)
     {
@@ -541,11 +557,51 @@ BOOL isRunning;
         // Romo will Laugh
         self.Romo.expression = RMCharacterExpressionLaugh;
     }
-    else if ([msg caseInsensitiveCompare:SPEED]== NSOrderedSame)
+    else if ([msg caseInsensitiveCompare:SLOWER]== NSOrderedSame)
     {
+        [self.Romo3 driveWithPower:0.25];
+    }
+    else if ([msg caseInsensitiveCompare:FASTER]== NSOrderedSame)
+    {
+        [self.Romo3 driveWithPower:0.70];
+    }
+    else if ([msg caseInsensitiveCompare:STOPSIGN]== NSOrderedSame)
+    {
+        activeSign = stop;
+    }
+    else if ([msg caseInsensitiveCompare:GOSIGN]== NSOrderedSame)
+    {
+        activeSign = go;
+    }
+    else if ([msg caseInsensitiveCompare:LEFTSIGN]== NSOrderedSame)
+    {
+        activeSign = turnLeft;
+    }
+    else if ([msg caseInsensitiveCompare:RIGHTSIGN]== NSOrderedSame)
+    {
+        activeSign = turnRight;
+    }
+    else if ([msg caseInsensitiveCompare:SLOWSIGN]== NSOrderedSame)
+    {
+        activeSign = slowDown;
+    }
+    else if ([msg caseInsensitiveCompare:DNESIGN]== NSOrderedSame)
+    {
+        activeSign = doNotEnter;
+    }
+    else if ([msg caseInsensitiveCompare:TWEET]== NSOrderedSame)
+    {
+        [self callNLPService];
+    }
+    else if ([msg caseInsensitiveCompare:OFF]== NSOrderedSame)
+    {
+        [self turnCameraOff];
         
     }
-    
+    else if ([msg caseInsensitiveCompare:ON]== NSOrderedSame)
+    {
+        [self turnCameraOn];
+    }
     else
     {
         self.Romo.emotion = RMCharacterEmotionBewildered;
@@ -555,8 +611,38 @@ BOOL isRunning;
     [socket readDataWithTimeout:NO_TIMEOUT tag:0];
 }
 
-- (void) processMovement {
-    
+- (void) processMovement: (NSString *) sign {
+    NSLog(@"Calling processMovement with sign: %@", sign);
+    if ([sign caseInsensitiveCompare:stop] == NSOrderedSame)
+    {
+        NSLog(@"Stop Sign - Stopping All Motion");
+        [self.Romo3 stopAllMotion];
+    }
+    else if ([sign caseInsensitiveCompare:go] == NSOrderedSame)
+    {
+        NSLog(@"Go Sign - Going...");
+        [self.Romo3 driveForwardWithSpeed:0.5];
+    }
+    else if ([sign caseInsensitiveCompare:doNotEnter] == NSOrderedSame)
+    {
+        NSLog(@"DNE Sign - Go Back...");
+        [self.Romo3 driveBackwardWithSpeed:0.5];
+    }
+    else if ([sign caseInsensitiveCompare:turnLeft] == NSOrderedSame)
+    {
+        NSLog(@"Left Sign - Turning Left...");
+        [self.Romo3 driveWithRadius:-1.0 speed:0.5];
+    }
+    else if ([sign caseInsensitiveCompare:turnRight] == NSOrderedSame)
+    {
+        NSLog(@"Right Sign - Turning Right...");
+        [self.Romo3 driveWithRadius:1.0 speed:0.5];
+    }
+    else if ([sign caseInsensitiveCompare:slowDown] == NSOrderedSame)
+    {
+        NSLog(@"Slow Sign - Slowing down");
+        [self.Romo3 driveWithPower:0.25];
+    }
 }
 
 - (void)didReceiveMemoryWarning {
@@ -581,15 +667,15 @@ BOOL isRunning;
         [self.Romo3.LEDs setSolidWithBrightness:0.8];
         
         // When we plug Romo in, he get's excited!
-        //self.Romo.expression = RMCharacterExpressionExcited;
+        self.Romo.expression = RMCharacterExpressionExcited;
     }
     
     AppDelegate *appDelegate = (AppDelegate *)[[UIApplication sharedApplication] delegate];
     
-    //self.Romo.emotion = RMCharacterExpressionCurious;
-    //self.Romo.expression = RMCharacterExpressionTalking;
+    self.Romo.emotion = RMCharacterEmotionDelighted;
+    self.Romo.expression = RMCharacterExpressionTalking;
     
-    /*
+    
      [self.Romo3 tiltToAngle:90
      completion:^(BOOL success) {
      if (success) {
@@ -598,7 +684,7 @@ BOOL isRunning;
      NSLog(@"Couldn't tilt to the desired angle");
      }
      }];
-    */
+    
     
     self.motionManager = [appDelegate sharedMotionManager];
     self.motionManager.gyroUpdateInterval = 0.2;
@@ -781,10 +867,6 @@ BOOL isRunning;
 - (IBAction)tappedOnBlue:(id)sender {
     _min = 75;
     _max = 130;
-    
-    /* PHONE CALL
-            [[UIApplication sharedApplication]openURL:[NSURL URLWithString:@"tel:8165419212"]];
-    */
      
     NSLog(@"%.2f - %.2f", _min, _max);
 }
@@ -917,7 +999,10 @@ BOOL isRunning;
     NSLog(@"THE SIGN IS: %@", sign);
     */
     
-    [self didCaptureIplImage:workingCopy:stop];
+    if (activeSign != nil)
+    {
+        [self didCaptureIplImage:workingCopy:activeSign];
+    }
 }
 
 
@@ -1136,10 +1221,17 @@ static void ReleaseDataCallback(void *info, const void *data, size_t size)
     //Mat img_object = imread( argv[1], CV_LOAD_IMAGE_GRAYSCALE );
     //Mat img_scene = imread( argv[2], CV_LOAD_IMAGE_GRAYSCALE );
     
+    //Bitmap icon = BitmapFactory.decodeResource(triggerImageURL);
     
     //    Mat img_object=imread([imageURL UTF8String], CV_LOAD_IMAGE_GRAYSCALE);
     Mat img_object= cv::imread([triggerImageURL UTF8String], CV_LOAD_IMAGE_GRAYSCALE);
     Mat img_scene = imgRGB;
+    if (!img_object.data)
+    {
+        img_object.deallocate();
+        img_object =cv::imread([triggerImageURL UTF8String], CV_LOAD_IMAGE_GRAYSCALE);
+    }
+    
     if( !img_object.data || !img_scene.data )
     { std::cout<< " --(!) Error reading images " << std::endl;  }
     
@@ -1160,6 +1252,13 @@ static void ReleaseDataCallback(void *info, const void *data, size_t size)
     
     extractor.compute( img_object, keypoints_object, descriptors_object );
     extractor.compute( img_scene, keypoints_scene, descriptors_scene );
+    
+    if ( descriptors_object.empty() )
+        return;
+        //cvError(0,"MatchFinder","1st descriptor empty",__FILE__,__LINE__);
+    if ( descriptors_scene.empty() )
+        return;
+        //cvError(0,"MatchFinder","2nd descriptor empty",__FILE__,__LINE__);
     
     //-- Step 3: Matching descriptor vectors using FLANN matcher
     FlannBasedMatcher matcher;
@@ -1220,10 +1319,11 @@ static void ReleaseDataCallback(void *info, const void *data, size_t size)
     
     
     double area = contourArea(scene_corners);
-    //printf("-- AREA %.2f", area);
-    if(area > 1000)
+    //NSLog(@"Calling perform with msg: %@", msg);printf("-- AREA %.2f", area);
+    if(area > 100)
     {
         cout<<"GOT IT !!!!\n Perform your action on object recognition here";
+        [self processMovement:triggerImageURL];
     }
     //    double floored_scene_x[4], floored_scene_y[4];
     //

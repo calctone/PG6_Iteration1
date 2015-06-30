@@ -35,11 +35,12 @@
 
 @property (nonatomic, strong) RMCoreRobotRomo3 *Romo3;
 @property (nonatomic, strong) RMCharacter *Romo;
+@property (strong, nonatomic) NSString *activeSign;
 
 @property (strong, nonatomic) IBOutlet UIImageView *thumbNailImageView;
 
 - (UIImage*)getUIImageFromIplImage:(IplImage *)iplImage;
-- (void)didCaptureIplImage:(IplImage *)iplImage;
+- (void)didCaptureIplImage:(IplImage *)iplImage :(NSString *)triggerImageURL;
 - (void)didFinishProcessingImage:(IplImage *)iplImage;
 
 - (void)addGestureRecognizers;
